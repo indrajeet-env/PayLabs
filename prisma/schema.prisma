@@ -1,0 +1,299 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+
+//      Customer
+//         │
+//         ▼
+//      Account
+//         │
+//         ▼
+//      Payment
+//         │
+//         ▼
+//    InvestigationCase
+//         │
+//    ┌────┼───────────────┐
+//    │       │       │    │
+// Evidence Decision Audit AgentRun
+
+
+
+// generator client {
+//   provider = "prisma-client-js"
+// }
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountStatus {
+  ACTIVE
+  FROZEN
+  CLOSED
+}
+
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  UNKNOWN
+}
+
+// These are the five primary digital fund transfer systems used for different speeds, amounts, and destinations. Use UPI for instant, daily mobile payments, IMPS for 24/7 account transfers up to ₹5 Lakhs, NEFT for general, batched bank transfers, and RTGS for urgent, high-value transfers above ₹2 Lakhs. Use SWIFT for international, cross-border payments
+enum PaymentRail {
+  UPI
+  IMPS
+  NEFT
+  RTGS
+  SWIFT
+}
+
+enum FailureReason {
+  NONE
+  INSUFFICIENT_FUNDS
+  BENEFICIARY_INVALID
+  ACCOUNT_CLOSED
+  NETWORK_TIMEOUT
+  ACK_TIMEOUT
+  SWITCH_FAILURE
+  AML_HOLD
+  SANCTIONS_HOLD
+  DUPLICATE_PAYMENT
+  UNKNOWN
+}
+
+enum CaseStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  ESCALATED
+}
+
+enum EvidenceType {
+  BALANCE
+  BENEFICIARY
+  NETWORK
+  COMPLIANCE
+  DUPLICATE
+}
+
+enum DecisionAction {
+  RETRY
+  HOLD
+  ESCALATE // escalate means transferring an issue to higher authority for specialized attention
+  REJECT
+  COMPLETE
+}
+
+enum AgentType {
+  BALANCE
+  NETWORK
+  COMPLIANCE
+  DUPLICATE
+  EVIDENCE
+  DECISION
+  EXECUTION
+}
+
+enum CasePriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AgentRunStatus {
+  SUCCESS
+  FAILED
+  SKIPPED
+  TIMEOUT
+}
+
+// Represents a bank customer who owns one or more accounts
+// and maintains a list of saved beneficiaries.
+model Customer {
+  id String @id @default(cuid()) // The cuid() function generates a Collision-Resistant Unique Identifier, Financial systems and banking applications heavily rely on string-based unique identifiers like CUIDs rather than simple auto-incremented integers
+
+  fullName String
+
+  email String @unique
+
+  phone String? @unique
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  accounts Account[]
+
+}
+
+model Account {
+  id String @id @default(cuid())
+
+  customerId String
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  accountNumber String @unique
+
+  balance Decimal @db.Decimal(18, 2)
+
+  currency String @default("INR")
+
+  status AccountStatus @default(ACTIVE)
+
+  outgoingPayments Payment[] @relation("SenderAccount")
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+}
+
+
+model Payment {
+  id String @id @default(cuid())
+
+  senderAccountId String
+
+  senderAccount Account @relation("SenderAccount", fields: [senderAccountId], references: [id], onDelete: Restrict)
+
+  receiverName String
+
+  receiverAccountNumber String
+
+  receiverIFSC String
+
+  receiverBankName String
+
+  amount Decimal @db.Decimal(18, 2)
+
+  rail PaymentRail
+
+  status PaymentStatus
+
+  requiresInvestigation Boolean @default(false)
+
+  failureReason FailureReason @default(NONE)
+
+  idempotencyKey String @unique
+
+  referenceNumber String @unique
+
+  providerReference String?
+
+  investigationCase InvestigationCase?
+
+
+  initiatedAt DateTime @default(now())
+  submittedAt DateTime?
+  completedAt DateTime?
+
+  @@index([senderAccountId])
+  @@index([status])
+}
+
+model InvestigationCase {
+  id String @id @default(cuid())
+
+  paymentId String @unique
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  status CaseStatus @default(OPEN)
+
+  priority CasePriority @default(MEDIUM)
+
+  resolutionSummary String?
+
+  openedAt DateTime @default(now())
+
+  closedAt DateTime?
+
+  evidences Evidence[]
+
+  decision Decision?
+
+  auditLogs AuditLog[]
+
+  agentRuns AgentRun[]
+}
+
+model Evidence {
+  id String @id @default(cuid())
+
+  caseId String
+
+  investigationCase InvestigationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  type EvidenceType
+
+  payload Json
+
+  createdAt DateTime @default(now())
+
+  @@index([caseId])
+}
+
+model Decision {
+  id String @id @default(cuid())
+
+  caseId String @unique // one decision per case
+
+  investigationCase InvestigationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  action DecisionAction
+
+  confidence Float
+
+  reason Json
+
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id String @id @default(cuid())
+
+  caseId String
+
+  investigationCase InvestigationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  event String
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([caseId])
+}
+
+model AgentRun {
+  id String @id @default(cuid())
+
+  caseId String
+
+  investigationCase InvestigationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  agentName AgentType
+
+  input Json
+
+  output Json
+
+  latency Int
+
+  status AgentRunStatus
+
+  startedAt DateTime
+
+  endedAt DateTime
+
+  @@index([caseId])
+}
