@@ -23,40 +23,54 @@ Retry  Escalate  Notify
 
 
 
-                         API
+                     API
 
-                          │
+                      │
+                      ▼
 
-                   Express Server
+               Express Server
 
-                          │
+                      │
+                      ▼
 
-               Payment Exception API
+          POST /investigate/:reference
 
-                          │
+                      │
+                      ▼
 
-                     LangGraph
+          Fetch Payment Context (Repository)
 
-                          │
+                      │
+                      ▼
 
-        ┌──────────────┬───────────────┐
-        │              │               │
- Investigation   Planner Agent   Memory State
-        │
-        ▼
- ┌──────────────┬─────────────┬─────────────┬────────────┐
- │              │             │             │            │
-Beneficiary  Balance     Network     Compliance   Duplicate
-   Agent       Agent       Agent         Agent        Agent
-        └──────────────┬───────────────┘
-                       ▼
-              Evidence Aggregator
-                       ▼
+                LangGraph State
+
+                      │
+                      ▼
+
+                Planner Agent
+
+                      │
+      ┌───────────────┼────────────────┐
+      │               │                │
+      ▼               ▼                ▼
+
+ Balance Agent   Network Agent   Compliance Agent
+      │               │                │
+      └───────────────┼────────────────┘
+                      │
+                      ▼
+              Duplicate Agent
+                      │
+                      ▼
+            Evidence Aggregator
+                      │
+                      ▼
                Decision Agent
-             ┌─────────┴──────────┐
-             ▼                    ▼
-      Auto Resolution      Human Escalation
-             │                    │
-             └─────────┬──────────┘
-                       ▼
+             ┌────────┴─────────┐
+             ▼                  ▼
+      Auto Resolution     Human Escalation
+             │                  │
+             └────────┬─────────┘
+                      ▼
              Audit + PostgreSQL
