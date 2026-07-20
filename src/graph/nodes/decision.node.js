@@ -1,11 +1,25 @@
 export async function decisionNode(state) {
-  const balanceEvidence = (state.evidences && state.evidences.find((e) => e.type === "BALANCE_CHECK")) || (state.evidences && state.evidences[0]); // either finds the evidence with type "BALANCE_CHECK" or takes the first evidence
+  const balanceEvidence = state.evidences.find((e) => e.type === "BALANCE_CHECK");
 
-  const sufficientFunds = Boolean(balanceEvidence?.data?.sufficientFunds); // answers whether the sufficient funds are available or not
+  const networkEvidence = state.evidences.find((e) => e.type === "NETWORK_CHECK");
+
+  const sufficientFunds = balanceEvidence?.data?.sufficientFunds ?? false;
+
+  const networkHealthy = networkEvidence?.data?.networkStatus === "HEALTHY";
+
+  if (!sufficientFunds) {
+    return {
+      decision: "ESCALATE_TO_BANK",
+    };
+  }
+
+  if (!networkHealthy) {
+    return {
+      decision: "RETRY_PAYMENT",
+    };
+  }
 
   return {
-    decision: sufficientFunds // if sufficient funds are available, then retry the payment, else escalate to the bank
-      ? "RETRY_PAYMENT"
-      : "ESCALATE_TO_BANK",
+    decision: "FURTHER_INVESTIGATION_REQUIRED",
   };
 }
