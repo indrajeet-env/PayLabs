@@ -1,24 +1,26 @@
-import { ChatOpenAI } from "@langchain/openai";
+import { ChatGroq } from "@langchain/groq";
 import networkTool from "../tools/network.tool.js";
 
-export const NETWORK_SYSTEM_PROMPT = `You are a specialized Payment Network Investigation Agent for payment failure analysis.
-Your task is to investigate whether a failed or pending payment was caused by payment rail failures, network timeouts, switch failures, or acknowledgment timeouts.
+export const NETWORK_SYSTEM_PROMPT = `You are a specialized Payment Network & Rail Diagnostics Agent.
+Your objective is to analyze raw gateway response codes, bank response codes, ACK flags, network latency, retry counts, and system logs to identify rail or network failures.
 
-Strict Guidelines:
-1. Never guess, assume, or fabricate payment network or rail statuses.
-2. Always call the network_checker tool with the exact payment reference to retrieve real-time, accurate network status evidence.
-3. Analyze the tool response and produce clear, structured reasoning regarding whether a network issue caused the payment failure.`;
+Strict Instructions:
+1. Always invoke the network_checker tool with the provided payment reference to retrieve raw operational evidence.
+2. Analyze the operational facts:
+   - Inspect gatewayResponseCode (e.g. 504 Gateway Timeout, 502 Bad Gateway/Switch Failure, 200 OK).
+   - Inspect bankResponseCode and switch/gateway logs.
+   - Check ackReceived (false indicates acknowledgement timeout).
+   - Check networkLatency (latency >= 10000ms indicates severe delay/timeout).
+   - Check retryCount.
+3. Formulate independent diagnostic conclusions based on raw facts.`;
 
+export function getNetworkAgent() {
+  const llm = new ChatGroq({
+    apiKey: process.env.GROQ_API_KEY,
+    model: "llama-3.3-70b-versatile",
+    temperature: 0,
+  });
+  return llm.bindTools([networkTool]);
+}
 
-const llm = new ChatOpenAI({
-  apiKey: process.env.OLLAMA_API_KEY,
-  configuration: {
-    baseURL: "https://ollama.com/api/openai",
-  },
-  model: "qwen3.5",
-  temperature: 0,
-});
-
-const networkAgent = llm.bindTools([networkTool]);
-
-export default networkAgent;
+export default getNetworkAgent;
