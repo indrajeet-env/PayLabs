@@ -9,8 +9,7 @@ const balanceTool = tool(
   {
     name: "balance_checker",
 
-    description:
-      "Checks the balance of the sender account.",
+    description: "Fetches raw account balance, transfer limits, minimum reserve, and account status for a payment reference.",
 
     schema: z.object({
       paymentReference: z.string().describe("Payment reference number"),
