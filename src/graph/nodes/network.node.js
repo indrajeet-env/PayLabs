@@ -1,14 +1,19 @@
 import { SystemMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
-import networkAgent, { NETWORK_SYSTEM_PROMPT } from "../../agents/network.agent.js";
+import { getNetworkAgent, NETWORK_SYSTEM_PROMPT } from "../../agents/network.agent.js";
 import networkTool from "../../tools/network.tool.js";
 import networkService from "../../services/network.service.js";
 
 export async function networkNode(state) {
+  if (state.selectedAgents && !state.selectedAgents.includes("network")) {
+    return {};
+  }
+
   const messages = [
     new SystemMessage(NETWORK_SYSTEM_PROMPT),
-    new HumanMessage(`Investigate payment reference: ${state.paymentReference}`),
+    new HumanMessage(`Investigate network operational evidence for payment reference: ${state.paymentReference}`),
   ];
 
+  const networkAgent = getNetworkAgent();
   const agentResponse = await networkAgent.invoke(messages);
 
   let networkData = null;

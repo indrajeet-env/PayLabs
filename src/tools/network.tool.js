@@ -9,7 +9,7 @@ const networkTool = tool(
   {
     name: "network_checker",
 
-    description: "Checks payment network status and rail health for a payment reference.",
+    description: "Fetches raw gateway response codes, bank response codes, ACK flags, latency, retry counts, and network logs for a payment reference.",
 
     schema: z.object({
       paymentReference: z.string().describe("Payment reference number"),
