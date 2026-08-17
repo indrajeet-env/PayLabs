@@ -1,5 +1,5 @@
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
-import { getReflectionAgent, REFLECTION_SYSTEM_PROMPT } from "../../agents/reflection.agent.js";
+import { getReflectionAgent, REFLECTION_SYSTEM_PROMPT, ReflectionOutputSchema } from "../../agents/reflection.agent.js";
 
 export async function reflectionNode(state) {
   const prompt = [
@@ -12,17 +12,20 @@ Specialist Evidences: ${JSON.stringify(state.evidences || [], null, 2)}`),
   let reflectionResult = null;
 
   try {
-    const reflectionAgent = getReflectionAgent();
+    const reflectionAgent = getReflectionAgent().withStructuredOutput(ReflectionOutputSchema);
     const response = await reflectionAgent.invoke(prompt);
-    const cleaned = response.content.replace(/```json|```/g, "").trim();
-    reflectionResult = JSON.parse(cleaned);
+    
+    reflectionResult = {
+      ...response,
+      reinvestigationNeeded: response.reinvestigationNeeded === "true" || response.reinvestigationNeeded === true
+    };
   } catch (e) {
-    console.error("Reflection LLM parsing fallback:", e.message);
+    console.error("Reflection LLM parsing error:", e.message);
     reflectionResult = {
       consensusFinding: "Specialist findings synthesized.",
       conflictResolution: "No explicit conflicts detected.",
       reinvestigationNeeded: false,
-      reflectionReasoning: "Fallback reflection synthesis completed.",
+      reflectionReasoning: "Fallback reflection synthesis completed due to parsing error.",
     };
   }
 

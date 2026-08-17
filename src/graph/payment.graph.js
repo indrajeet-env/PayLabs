@@ -23,10 +23,32 @@ workflow.addNode("reflection_node", reflectionNode);
 workflow.addNode("decision_node", decisionNode);
 
 workflow.addEdge(START, "planner");
-workflow.addEdge("planner", "balance");
-workflow.addEdge("balance", "network");
-workflow.addEdge("network", "compliance");
+
+function routeFromPlanner(state) {
+  const selected = state.selectedAgents || [];
+  if (selected.length === 0) {
+    return ["reflection_node"];
+  }
+  const validAgents = ["balance", "network", "compliance"];
+  const targets = selected.filter(agent => validAgents.includes(agent));
+  return targets.length > 0 ? targets : ["reflection_node"];
+}
+
+workflow.addConditionalEdges(
+  "planner",
+  routeFromPlanner,
+  {
+    balance: "balance",
+    network: "network",
+    compliance: "compliance",
+    reflection_node: "reflection_node"
+  }
+);
+
+workflow.addEdge("balance", "reflection_node");
+workflow.addEdge("network", "reflection_node");
 workflow.addEdge("compliance", "reflection_node");
+
 workflow.addEdge("reflection_node", "decision_node");
 workflow.addEdge("decision_node", END);
 

@@ -1,5 +1,5 @@
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
-import { getPlannerAgent, PLANNER_SYSTEM_PROMPT } from "../../agents/planner.agent.js";
+import { getPlannerAgent, PLANNER_SYSTEM_PROMPT, PlannerOutputSchema } from "../../agents/planner.agent.js";
 import paymentService from "../../services/payment.service.js";
 
 export async function plannerNode(state) {
@@ -19,18 +19,16 @@ export async function plannerNode(state) {
   let reasoning = "Default comprehensive investigation plan.";
 
   try {
-    const plannerAgent = getPlannerAgent();
+    const plannerAgent = getPlannerAgent().withStructuredOutput(PlannerOutputSchema);
     const response = await plannerAgent.invoke(prompt);
-    const cleaned = response.content.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(cleaned);
-    if (parsed.selectedAgents && Array.isArray(parsed.selectedAgents)) {
-      selectedAgents = parsed.selectedAgents;
+    if (response.selectedAgents && Array.isArray(response.selectedAgents)) {
+      selectedAgents = response.selectedAgents;
     }
-    if (parsed.reasoning) {
-      reasoning = parsed.reasoning;
+    if (response.reasoning) {
+      reasoning = response.reasoning;
     }
   } catch (e) {
-    console.error("Planner LLM parsing fallback:", e.message);
+    console.error("Planner LLM structured output error:", e.message);
   }
 
   return {

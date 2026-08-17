@@ -46,8 +46,6 @@ class PaymentService {
 
       status: payment.status,
 
-      failureReason: payment.failureReason,
-
       initiatedAt: payment.initiatedAt,
 
       submittedAt: payment.submittedAt,
