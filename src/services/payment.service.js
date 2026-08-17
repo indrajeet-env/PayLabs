@@ -1,78 +1,58 @@
-// Repository
-//       │
-//       ▼
-// Payment Service
-//       │
-//       ▼
-// Return a clean "Payment Context" for the agent
-
-
-// Instead of returning raw Prisma objects to the AI, we’ll return a clean object like:
-
-/**
-{
-  "paymentReference": "PAY0002",
-  "amount": 5000,
-  "rail": "UPI",
-  "failureReason": "NETWORK_TIMEOUT",
-  "sender": {
-    "name": "Jeet Singh",
-    "accountNumber": "110000001",
-    "balance": "50000.00"
-  },
-  "receiver": {
-    "name": "Rahul Sharma",
-    "bank": "HDFC Bank",
-    "ifsc": "HDFC0001234"
-  }
-}
-*/
-
 import paymentRepository from "../repositories/payment.repository.js";
 
 class PaymentService {
   async getPaymentContext(referenceNumber) {
     const payment = await paymentRepository.getByReference(referenceNumber);
 
-    if(!payment){
-      throw new Error("Payment not found");
+    if (!payment) {
+      throw new Error("Payment not found.");
     }
-    return{
+
+    return {
       paymentReference: payment.referenceNumber,
-
       amount: Number(payment.amount),
-
       rail: payment.rail,
-
       status: payment.status,
-
-      initiatedAt: payment.initiatedAt,
-
-      submittedAt: payment.submittedAt,
-
-      completedAt: payment.completedAt,      
+      requiresInvestigation: payment.requiresInvestigation,
 
       sender: {
-
         name: payment.senderAccount.customer.fullName,
-
         accountNumber: payment.senderAccount.accountNumber,
-
         balance: Number(payment.senderAccount.balance),
-
+        dailyTransferLimit: Number(
+          payment.senderAccount.dailyTransferLimit
+        ),
+        minimumReserve: Number(payment.senderAccount.minimumReserve),
+        accountStatus: payment.senderAccount.status,
       },
 
       receiver: {
-
         name: payment.receiverName,
-
         accountNumber: payment.receiverAccountNumber,
-
         ifsc: payment.receiverIFSC,
-
         bank: payment.receiverBankName,
-      }
-    }
+      },
+
+      networkSignals: {
+        gatewayResponseCode: payment.gatewayResponseCode,
+        bankResponseCode: payment.bankResponseCode,
+        ackReceived: payment.ackReceived,
+        networkLatency: payment.networkLatency,
+        retryCount: payment.retryCount,
+        gatewayLogs: payment.gatewayLogs,
+        switchLogs: payment.switchLogs,
+      },
+
+      complianceSignals: {
+        amlRiskScore: payment.amlRiskScore,
+        amlRiskReasons: payment.amlRiskReasons,
+        kycStatus: payment.kycStatus,
+        sanctionsMatches: payment.sanctionsMatches,
+        matchedEntity: payment.matchedEntity,
+        matchedList: payment.matchedList,
+        riskEngineResponse: payment.riskEngineResponse,
+      },
+    };
   }
 }
 

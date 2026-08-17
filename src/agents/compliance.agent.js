@@ -2,26 +2,76 @@ import { ChatGroq } from "@langchain/groq";
 import { z } from "zod";
 import complianceTool from "../tools/compliance.tool.js";
 
-export const COMPLIANCE_SYSTEM_PROMPT = `You are a specialized AML & Sanctions Compliance Investigation Agent.
-Your objective is to analyze raw compliance evidence including AML risk scores, risk reasons, KYC status, sanctions matches, and risk engine responses.
+export const COMPLIANCE_SYSTEM_PROMPT = `
+You are the Compliance Investigation Agent for PayLabs.
 
-Strict Instructions:
-1. Always invoke the compliance_checker/balance_checker/network_checker tools when provided to retrieve real-time raw compliance evidence.
-2. Analyze the operational facts:
-   - Check sanctionsMatches (if > 0, inspect matchedEntity and matchedList e.g. OFAC SDN list).
-   - Check amlRiskScore (e.g. score >= 75 indicates high AML risk) and inspect amlRiskReasons.
-   - Check kycStatus ("EXPIRED", "PENDING", "REJECTED" vs "VERIFIED").
-   - Inspect raw riskEngineResponse.
-3. Formulate independent compliance risk findings and recommendations for manual review or escalation.
-4. Output your analysis by populating the structured schema.`;
+Your responsibility is to investigate AML, sanctions, KYC, and compliance
+signals associated with a payment.
+
+You MUST use the compliance_checker tool to retrieve raw operational evidence.
+
+The tool may provide:
+
+- amlRiskScore
+- amlRiskReasons
+- kycStatus
+- sanctionsMatches
+- matchedEntity
+- matchedList
+- riskEngineResponse
+
+After receiving the tool result:
+
+1. Analyze the raw compliance evidence.
+2. Inspect AML risk score and reasons.
+3. Inspect sanctions screening results.
+4. Inspect KYC status.
+5. Inspect the risk-engine response.
+6. Determine the most likely compliance finding.
+7. Never fabricate a sanctions match or AML reason.
+8. Do not rely on a pre-computed failure reason.
+
+Possible findings include:
+
+AML_HOLD
+SANCTIONS_HOLD
+KYC_EXPIRED
+KYC_PENDING
+KYC_REJECTED
+COMPLIANCE_HOLD
+COMPLIANCE_HEALTHY
+UNKNOWN
+
+Return the structured investigation result.
+`;
 
 export const SpecialistOutputSchema = z.object({
-  type: z.string().describe("The type of checking, always 'COMPLIANCE_CHECK' for this agent"),
-  finding: z.string().describe("The primary finding/diagnostic outcome inferred from the raw facts (e.g., 'AML_HOLD', 'SANCTIONS_HOLD', 'KYC_EXPIRED', 'COMPLIANCE_HOLD', 'COMPLIANCE_HEALTHY')"),
-  confidence: z.coerce.number().describe("Confidence score between 0.0 and 1.0"),
-  supportingEvidence: z.array(z.string()).describe("A list of concrete raw evidence facts used in reasoning"),
-  reasoning: z.string().describe("Step-by-step explanation of how the raw facts lead to the finding"),
-  recommendedAction: z.string().describe("The suggested business action based on this domain (e.g., 'HOLD', 'ESCALATE_TO_COMPLIANCE', 'REJECT')")
+  type: z
+    .string()
+    .describe("Always COMPLIANCE_CHECK"),
+
+  finding: z
+    .string()
+    .describe("Finding inferred from raw compliance evidence"),
+
+  confidence: z
+    .coerce
+    .number()
+    .min(0)
+    .max(1)
+    .describe("Confidence between 0 and 1"),
+
+  supportingEvidence: z
+    .array(z.string())
+    .describe("Concrete compliance facts supporting the finding"),
+
+  reasoning: z
+    .string()
+    .describe("Reasoning from evidence to finding"),
+
+  recommendedAction: z
+    .string()
+    .describe("Recommended compliance action")
 });
 
 export function getComplianceLlm() {
@@ -33,8 +83,7 @@ export function getComplianceLlm() {
 }
 
 export function getComplianceAgent() {
-  const llm = getComplianceLlm();
-  return llm.bindTools([complianceTool]);
+  return getComplianceLlm().bindTools([complianceTool]);
 }
 
 export default getComplianceAgent;

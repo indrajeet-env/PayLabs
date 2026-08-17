@@ -1,35 +1,51 @@
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
-import { getReflectionAgent, REFLECTION_SYSTEM_PROMPT, ReflectionOutputSchema } from "../../agents/reflection.agent.js";
+
+import {
+  getReflectionAgent,
+  REFLECTION_SYSTEM_PROMPT,
+  ReflectionOutputSchema,
+} from "../../agents/reflection.agent.js";
 
 export async function reflectionNode(state) {
-  const prompt = [
+  const messages = [
     new SystemMessage(REFLECTION_SYSTEM_PROMPT),
-    new HumanMessage(`Review specialist findings for payment reference ${state.paymentReference}:
-Planner Reasoning: ${state.plannerReasoning || "N/A"}
-Specialist Evidences: ${JSON.stringify(state.evidences || [], null, 2)}`),
+
+    new HumanMessage(`
+Review the specialist investigation results.
+
+Payment Reference:
+${state.paymentReference}
+
+Planner Reasoning:
+${state.plannerReasoning || "N/A"}
+
+Specialist Findings:
+${JSON.stringify(state.evidences || [], null, 2)}
+`),
   ];
 
-  let reflectionResult = null;
-
   try {
-    const reflectionAgent = getReflectionAgent().withStructuredOutput(ReflectionOutputSchema);
-    const response = await reflectionAgent.invoke(prompt);
-    
-    reflectionResult = {
-      ...response,
-      reinvestigationNeeded: response.reinvestigationNeeded === "true" || response.reinvestigationNeeded === true
+    const reflectionAgent =
+      getReflectionAgent().withStructuredOutput(
+        ReflectionOutputSchema
+      );
+
+    const result = await reflectionAgent.invoke(messages);
+
+    return {
+      reflection: result,
     };
-  } catch (e) {
-    console.error("Reflection LLM parsing error:", e.message);
-    reflectionResult = {
-      consensusFinding: "Specialist findings synthesized.",
-      conflictResolution: "No explicit conflicts detected.",
-      reinvestigationNeeded: false,
-      reflectionReasoning: "Fallback reflection synthesis completed due to parsing error.",
+  } catch (error) {
+    console.error("Reflection agent error:", error);
+
+    return {
+      reflection: {
+        consensusFinding: "REFLECTION_FAILED",
+        conflictResolution:
+          "Reflection could not be completed.",
+        requiresMoreEvidence: true,
+        reflectionReasoning: error.message,
+      },
     };
   }
-
-  return {
-    reflection: reflectionResult,
-  };
 }

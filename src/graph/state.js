@@ -10,7 +10,7 @@ export const PaymentState = Annotation.Root({
   }),
 
   selectedAgents: Annotation({
-    default: () => ["balance", "network", "compliance"],
+    default: () => [],
   }),
 
   plannerReasoning: Annotation({

@@ -1,62 +1,76 @@
-import { SystemMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
-import { getComplianceAgent, getComplianceLlm, COMPLIANCE_SYSTEM_PROMPT, SpecialistOutputSchema } from "../../agents/compliance.agent.js";
+import {
+  SystemMessage,
+  HumanMessage,
+  ToolMessage,
+} from "@langchain/core/messages";
+
+import {
+  getComplianceAgent,
+  getComplianceLlm,
+  COMPLIANCE_SYSTEM_PROMPT,
+  SpecialistOutputSchema,
+} from "../../agents/compliance.agent.js";
+
 import complianceTool from "../../tools/compliance.tool.js";
-import complianceService from "../../services/compliance.service.js";
 
 export async function complianceNode(state) {
-  if (state.selectedAgents && !state.selectedAgents.includes("compliance")) {
+  if (!state.selectedAgents?.includes("compliance")) {
     return {};
   }
 
   try {
     const messages = [
       new SystemMessage(COMPLIANCE_SYSTEM_PROMPT),
-      new HumanMessage(`Investigate compliance evidence for payment reference: ${state.paymentReference}`),
+
+      new HumanMessage(
+        `Investigate payment reference: ${state.paymentReference}`
+      ),
     ];
 
-    const complianceAgent = getComplianceAgent();
-    const agentResponse = await complianceAgent.invoke(messages);
+    const agent = getComplianceAgent();
 
-    let complianceData = null;
-    let structuredFinding = null;
+    const agentResponse = await agent.invoke(messages);
 
-    if (agentResponse.tool_calls && agentResponse.tool_calls.length > 0) {
-      const toolCall = agentResponse.tool_calls[0];
-      complianceData = await complianceTool.invoke(toolCall.args);
-
-      const toolMessage = new ToolMessage({
-        tool_call_id: toolCall.id,
-        content: JSON.stringify(complianceData),
-      });
-
-      const structuredAgent = getComplianceLlm().withStructuredOutput(SpecialistOutputSchema);
-      structuredFinding = await structuredAgent.invoke([
-        ...messages,
-        agentResponse,
-        toolMessage,
-      ]);
-    } else {
-      complianceData = await complianceService.getComplianceStatus(state.paymentReference);
-      
-      const structuredAgent = getComplianceLlm().withStructuredOutput(SpecialistOutputSchema);
-      structuredFinding = await structuredAgent.invoke([
-        ...messages,
-        new HumanMessage(`Here are the raw compliance facts retrieved: ${JSON.stringify(complianceData)}`)
-      ]);
+    if (!agentResponse.tool_calls?.length) {
+      throw new Error(
+        "Compliance agent did not call compliance_checker."
+      );
     }
 
+    const toolCall = agentResponse.tool_calls[0];
+
+    const complianceData =
+      await complianceTool.invoke(toolCall.args);
+
+    const toolMessage = new ToolMessage({
+      tool_call_id: toolCall.id,
+      content: JSON.stringify(complianceData),
+    });
+
+    const structuredAgent =
+      getComplianceLlm().withStructuredOutput(
+        SpecialistOutputSchema
+      );
+
+    const finding = await structuredAgent.invoke([
+      ...messages,
+      agentResponse,
+      toolMessage,
+    ]);
+
     return {
-      evidences: [structuredFinding],
+      evidences: [finding],
     };
-  } catch (err) {
-    console.error("Error in complianceNode:", err);
+  } catch (error) {
+    console.error("Compliance agent error:", error);
+
     return {
       evidences: [
         {
           type: "AGENT_ERROR",
           agent: "compliance",
-          error: err.message,
-        }
+          error: error.message,
+        },
       ],
     };
   }

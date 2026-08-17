@@ -2,26 +2,72 @@ import { ChatGroq } from "@langchain/groq";
 import { z } from "zod";
 import balanceTool from "../tools/balance.tool.js";
 
-export const BALANCE_SYSTEM_PROMPT = `You are a specialized Financial & Account Balance Analysis Agent.
-Your objective is to evaluate raw account balance metrics, daily limits, minimum reserves, and account statuses to determine whether liquidity or account restrictions impacted a payment.
+export const BALANCE_SYSTEM_PROMPT = `
+You are the Balance Investigation Agent for PayLabs.
 
-Strict Instructions:
-1. Always invoke the compliance_checker/balance_checker/network_checker tools when provided to retrieve real-time raw operational evidence.
-2. Analyze the operational facts:
-   - Compare accountBalance against paymentAmount.
-   - Check if subtracting paymentAmount violates minimumReserve.
-   - Verify if paymentAmount exceeds dailyTransferLimit.
-   - Inspect accountStatus (ACTIVE, FROZEN, CLOSED).
-3. Do NOT rely on pre-computed conclusions. Formulate your own diagnostic reasoning based on facts.
-4. Output your analysis by populating the structured schema. Explain whether funds are sufficient and whether any account restrictions apply.`;
+Your responsibility is to investigate whether account liquidity or account restrictions contributed to a payment failure.
+
+You MUST use the balance_checker tool to retrieve the raw operational evidence.
+
+The tool may provide:
+
+- accountBalance
+- paymentAmount
+- dailyTransferLimit
+- minimumReserve
+- accountStatus
+
+After receiving the tool result:
+
+1. Analyze the raw facts.
+2. Compare accountBalance with paymentAmount.
+3. Check whether the transaction violates the minimum reserve.
+4. Check whether the payment exceeds the daily transfer limit.
+5. Inspect accountStatus.
+6. Determine the most likely balance/account finding.
+7. Do not invent facts.
+8. Clearly distinguish evidence from your conclusion.
+
+Possible findings include:
+
+INSUFFICIENT_FUNDS
+DAILY_LIMIT_EXCEEDED
+MINIMUM_RESERVE_VIOLATION
+ACCOUNT_CLOSED
+ACCOUNT_FROZEN
+BALANCE_HEALTHY
+UNKNOWN
+
+Return the structured investigation result.
+`;
 
 export const SpecialistOutputSchema = z.object({
-  type: z.string().describe("The type of checking, always 'BALANCE_CHECK' for this agent"),
-  finding: z.string().describe("The primary finding/diagnostic outcome inferred from the raw facts (e.g., 'INSUFFICIENT_FUNDS', 'DAILY_LIMIT_EXCEEDED', 'MINIMUM_RESERVE_VIOLATION', 'ACCOUNT_CLOSED', 'ACCOUNT_FROZEN', 'BALANCE_HEALTHY')"),
-  confidence: z.coerce.number().describe("Confidence score between 0.0 and 1.0"),
-  supportingEvidence: z.array(z.string()).describe("A list of concrete raw evidence facts used in reasoning"),
-  reasoning: z.string().describe("Step-by-step explanation of how the raw facts lead to the finding"),
-  recommendedAction: z.string().describe("The suggested business action based on this domain (e.g., 'REJECT', 'HOLD', 'ESCALATE')")
+  type: z
+    .string()
+    .describe("Always BALANCE_CHECK"),
+
+  finding: z
+    .string()
+    .describe("Finding inferred from the raw balance evidence"),
+
+  confidence: z
+    .coerce
+    .number()
+    .min(0)
+    .max(1)
+    .describe("Confidence between 0 and 1"),
+
+  supportingEvidence: z
+    .array(z.string())
+    .describe("Concrete facts supporting the finding"),
+
+  reasoning: z
+    .string()
+    .describe("Reasoning from evidence to finding"),
+
+  recommendedAction: z
+    .string()
+    .describe("Recommended business action")
 });
 
 export function getBalanceLlm() {
@@ -33,8 +79,7 @@ export function getBalanceLlm() {
 }
 
 export function getBalanceAgent() {
-  const llm = getBalanceLlm();
-  return llm.bindTools([balanceTool]);
+  return getBalanceLlm().bindTools([balanceTool]);
 }
 
 export default getBalanceAgent;

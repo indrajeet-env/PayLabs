@@ -1,25 +1,85 @@
 import { ChatGroq } from "@langchain/groq";
 import { z } from "zod";
 
-export const DECISION_SYSTEM_PROMPT = `You are the Lead Executive Decision Agent for the PayLabs Payment Investigation Platform.
-Your responsibility is to synthesize planner context, specialist evidence findings, and reflection synthesis into a final, authoritative investigation diagnosis and business action.
+export const DECISION_SYSTEM_PROMPT = `
+You are the Lead Decision Agent for the PayLabs Payment Investigation Platform.
 
-Instructions:
-1. Review all inputs (Planner plan, Specialist Evidences, Reflection analysis).
-2. Determine:
-   - "rootCause": Primary technical/operational failure cause (e.g. "INSUFFICIENT_FUNDS", "NETWORK_TIMEOUT", "SWITCH_FAILURE", "AML_SANCTIONS_HOLD", "KYC_EXPIRED", "PAYMENT_HEALTHY", "MULTI_FACTOR_FAILURE").
-   - "priority": "LOW", "MEDIUM", "HIGH", or "CRITICAL".
-   - "businessAction": Recommended enterprise action e.g. "RETRY", "ESCALATE_TO_COMPLIANCE", "ESCALATE_TO_BANK", "HOLD_FOR_KYC", "COMPLETE_PAYMENT".
-   - "finalReport": A detailed, executive-ready diagnostic narrative summarizing the investigation.
-3. The final report should explain the evidence and reflection outcome step-by-step.
-4. Output your final decision by populating the structured schema. Do not output markdown or explanations outside the JSON.`;
+You receive:
+
+- payment context
+- planner reasoning
+- specialist findings
+- reflection analysis
+
+Your responsibility is to determine the final investigation outcome.
+
+You must:
+
+1. Base the decision ONLY on the supplied evidence.
+2. Do not invent missing evidence.
+3. Resolve conflicts using the Reflection analysis.
+4. Distinguish primary root cause from secondary contributing factors.
+5. Determine the appropriate business action.
+6. Escalate when evidence is insufficient or the issue requires human intervention.
+7. Explain the final decision clearly.
+
+Possible root causes include:
+
+INSUFFICIENT_FUNDS
+DAILY_LIMIT_EXCEEDED
+MINIMUM_RESERVE_VIOLATION
+ACCOUNT_CLOSED
+ACCOUNT_FROZEN
+NETWORK_TIMEOUT
+ACK_TIMEOUT
+SWITCH_FAILURE
+GATEWAY_ERROR
+BANK_ERROR
+AML_HOLD
+SANCTIONS_HOLD
+KYC_EXPIRED
+KYC_PENDING
+COMPLIANCE_HOLD
+MULTI_FACTOR_FAILURE
+UNKNOWN
+
+Possible business actions:
+
+RETRY
+ESCALATE_TO_COMPLIANCE
+ESCALATE_TO_BANK
+HOLD_FOR_KYC
+COMPLETE_PAYMENT
+
+Do not output markdown.
+Return only the structured decision.
+`;
 
 export const DecisionOutputSchema = z.object({
-  rootCause: z.string().describe("Primary technical/operational failure cause (e.g. INSUFFICIENT_FUNDS, NETWORK_TIMEOUT, SWITCH_FAILURE, AML_SANCTIONS_HOLD, KYC_EXPIRED, PAYMENT_HEALTHY, MULTI_FACTOR_FAILURE)"),
-  confidence: z.coerce.number().describe("Confidence score between 0.0 and 1.0"),
-  priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).describe("Priority level of the case"),
-  businessAction: z.enum(["RETRY", "ESCALATE_TO_COMPLIANCE", "ESCALATE_TO_BANK", "HOLD_FOR_KYC", "COMPLETE_PAYMENT"]).describe("Recommended enterprise action"),
-  finalReport: z.string().describe("Comprehensive summary of findings, evidence, reflection, and business action.")
+  rootCause: z.string(),
+
+  confidence: z
+    .coerce
+    .number()
+    .min(0)
+    .max(1),
+
+  priority: z.enum([
+    "LOW",
+    "MEDIUM",
+    "HIGH",
+    "CRITICAL",
+  ]),
+
+  businessAction: z.enum([
+    "RETRY",
+    "ESCALATE_TO_COMPLIANCE",
+    "ESCALATE_TO_BANK",
+    "HOLD_FOR_KYC",
+    "COMPLETE_PAYMENT",
+  ]),
+
+  finalReport: z.string(),
 });
 
 export function getDecisionAgent() {

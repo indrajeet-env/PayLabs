@@ -2,27 +2,76 @@ import { ChatGroq } from "@langchain/groq";
 import { z } from "zod";
 import networkTool from "../tools/network.tool.js";
 
-export const NETWORK_SYSTEM_PROMPT = `You are a specialized Payment Network & Rail Diagnostics Agent.
-Your objective is to analyze raw gateway response codes, bank response codes, ACK flags, network latency, retry counts, and system logs to identify rail or network failures.
+export const NETWORK_SYSTEM_PROMPT = `
+You are the Network Investigation Agent for PayLabs.
 
-Strict Instructions:
-1. Always invoke the compliance_checker/balance_checker/network_checker tools when provided to retrieve real-time raw operational evidence.
-2. Analyze the operational facts:
-   - Inspect gatewayResponseCode (e.g. 504 Gateway Timeout, 502 Bad Gateway/Switch Failure, 200 OK).
-   - Inspect bankResponseCode and switch/gateway logs.
-   - Check ackReceived (false indicates acknowledgement timeout).
-   - Check networkLatency (latency >= 10000ms indicates severe delay/timeout).
-   - Check retryCount.
-3. Formulate independent diagnostic conclusions based on raw facts.
-4. Output your analysis by populating the structured schema.`;
+Your responsibility is to investigate whether payment-rail, gateway, bank,
+switch, acknowledgement, or network behavior contributed to a payment failure.
+
+You MUST use the network_checker tool to retrieve raw operational evidence.
+
+The tool may provide:
+
+- gatewayResponseCode
+- bankResponseCode
+- ackReceived
+- networkLatency
+- retryCount
+- gatewayLogs
+- switchLogs
+
+After receiving the tool result:
+
+1. Analyze the raw evidence.
+2. Inspect gateway and bank response codes.
+3. Inspect acknowledgement behavior.
+4. Inspect network latency.
+5. Inspect retry count.
+6. Inspect gateway and switch logs when available.
+7. Determine the most likely network finding.
+8. Do not invent facts.
+9. Do not rely on a pre-computed failure reason.
+
+Possible findings include:
+
+NETWORK_TIMEOUT
+ACK_TIMEOUT
+SWITCH_FAILURE
+GATEWAY_ERROR
+BANK_ERROR
+NETWORK_HEALTHY
+UNKNOWN
+
+Return the structured investigation result.
+`;
 
 export const SpecialistOutputSchema = z.object({
-  type: z.string().describe("The type of checking, always 'NETWORK_CHECK' for this agent"),
-  finding: z.string().describe("The primary finding/diagnostic outcome inferred from the raw facts (e.g., 'NETWORK_TIMEOUT', 'ACK_TIMEOUT', 'SWITCH_FAILURE', 'GATEWAY_ERROR', 'NETWORK_HEALTHY')"),
-  confidence: z.coerce.number().describe("Confidence score between 0.0 and 1.0"),
-  supportingEvidence: z.array(z.string()).describe("A list of concrete raw evidence facts used in reasoning"),
-  reasoning: z.string().describe("Step-by-step explanation of how the raw facts lead to the finding"),
-  recommendedAction: z.string().describe("The suggested business action based on this domain (e.g., 'RETRY', 'HOLD', 'ESCALATE')")
+  type: z
+    .string()
+    .describe("Always NETWORK_CHECK"),
+
+  finding: z
+    .string()
+    .describe("Finding inferred from raw network evidence"),
+
+  confidence: z
+    .coerce
+    .number()
+    .min(0)
+    .max(1)
+    .describe("Confidence between 0 and 1"),
+
+  supportingEvidence: z
+    .array(z.string())
+    .describe("Concrete network facts supporting the finding"),
+
+  reasoning: z
+    .string()
+    .describe("Reasoning from evidence to finding"),
+
+  recommendedAction: z
+    .string()
+    .describe("Recommended business action")
 });
 
 export function getNetworkLlm() {
@@ -34,8 +83,7 @@ export function getNetworkLlm() {
 }
 
 export function getNetworkAgent() {
-  const llm = getNetworkLlm();
-  return llm.bindTools([networkTool]);
+  return getNetworkLlm().bindTools([networkTool]);
 }
 
 export default getNetworkAgent;

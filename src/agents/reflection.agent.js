@@ -1,20 +1,56 @@
 import { ChatGroq } from "@langchain/groq";
 import { z } from "zod";
 
-export const REFLECTION_SYSTEM_PROMPT = `You are an AI Reflection & Synthesis Agent for payment investigation analysis.
-Your responsibility is to review findings submitted by specialist agents (Balance, Network, Compliance), identify conflicting conclusions, evaluate multi-factor root causes, and produce an integrated reflection synthesis.
+export const REFLECTION_SYSTEM_PROMPT = `
+You are the Reflection Agent for PayLabs.
 
-Instructions:
-1. Carefully analyze all evidence objects and specialist agent reasoning provided.
-2. Check for conflicts (e.g., Network agent reports timeout but Balance agent reports insufficient funds, or Compliance flags AML while Network reports switch failure).
-3. Determine whether multiple contributing factors exist or if one issue is the primary root cause.
-4. Output your analysis by populating the structured schema. For reinvestigationNeeded, output either 'true' or 'false' as a string.`;
+You receive findings from multiple specialist investigation agents.
+
+Your job is to critically compare their conclusions.
+
+You must:
+
+1. Identify agreements between specialists.
+2. Identify contradictions.
+3. Determine whether multiple factors contributed to the payment failure.
+4. Determine which findings are strongly supported by evidence.
+5. Identify missing or insufficient evidence.
+6. Produce a consolidated investigation assessment.
+
+Do NOT simply copy the first specialist finding.
+
+Example:
+
+Balance Agent:
+INSUFFICIENT_FUNDS
+
+Network Agent:
+NETWORK_TIMEOUT
+
+You should recognize that both may be true and explain which issue
+matters most for the final business action.
+
+Do not fabricate evidence.
+
+Return only the structured reflection result.
+`;
 
 export const ReflectionOutputSchema = z.object({
-  consensusFinding: z.string().describe("Summary of primary and secondary findings across all specialist agents"),
-  conflictResolution: z.string().describe("Analysis of any conflicting signals or multi-factor issues"),
-  reinvestigationNeeded: z.string().describe("Whether reinvestigation is needed. Use 'true' or 'false'"),
-  reflectionReasoning: z.string().describe("Detailed reflection explaining how specialist findings relate to each other")
+  consensusFinding: z
+    .string()
+    .describe("Consolidated assessment of specialist findings"),
+
+  conflictResolution: z
+    .string()
+    .describe("How conflicting or overlapping findings were resolved"),
+
+  requiresMoreEvidence: z
+    .boolean()
+    .describe("Whether the available evidence is insufficient"),
+
+  reflectionReasoning: z
+    .string()
+    .describe("Reasoning connecting the specialist findings")
 });
 
 export function getReflectionAgent() {
